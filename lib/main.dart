@@ -16,8 +16,39 @@ class DidiNesApp extends StatelessWidget {
     return MaterialApp(
       title: 'DidiNes',
       theme: ThemeData(
-        primarySwatch: Colors.blue,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF1E88E5),
+          primary: const Color(0xFF1E88E5),
+          secondary: const Color(0xFF00ACC1),
+          tertiary: const Color(0xFFFF7043),
+          background: Colors.grey[50],
+        ),
         useMaterial3: true,
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey[300]!),
+          ),
+        ),
+        cardTheme: CardTheme(
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
       ),
       home: const HomePage(),
     );
@@ -41,36 +72,57 @@ class _HomePageState extends State<HomePage> {
     const PeriodicTablePage(),
   ];
 
+  final List<String> _titles = [
+    'Calculateur de Réaction',
+    'Calcul d\'Avancement',
+    'Convertisseur d\'Unités',
+    'Tableau Périodique',
+  ];
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('DidiNes - Chimie'),
+        title: Text(_titles[_currentIndex]),
         centerTitle: true,
+        elevation: 0,
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Colors.white,
       ),
-      body: _pages[_currentIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        currentIndex: _currentIndex,
-        onTap: (index) {
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Theme.of(context).colorScheme.primary.withOpacity(0.05),
+              Theme.of(context).colorScheme.background,
+            ],
+          ),
+        ),
+        child: _pages[_currentIndex],
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex,
+        onDestinationSelected: (index) {
           setState(() {
             _currentIndex = index;
           });
         },
-        items: const [
-          BottomNavigationBarItem(
+        destinations: const [
+          NavigationDestination(
             icon: Icon(Icons.science),
             label: 'Réaction',
           ),
-          BottomNavigationBarItem(
+          NavigationDestination(
             icon: Icon(Icons.trending_up),
             label: 'Avancement',
           ),
-          BottomNavigationBarItem(
+          NavigationDestination(
             icon: Icon(Icons.compare_arrows),
             label: 'Conversion',
           ),
-          BottomNavigationBarItem(
+          NavigationDestination(
             icon: Icon(Icons.grid_on),
             label: 'Tableau',
           ),

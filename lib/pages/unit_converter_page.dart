@@ -14,42 +14,48 @@ class _UnitConverterPageState extends State<UnitConverterPage> {
   String _toUnit = 'g/m³';
   double? _result;
 
-  final List<String> _units = ['g/L', 'g/m³', 'kg/L', 'kg/m³'];
+  final Map<String, Map<String, double>> _conversionFactors = {
+    'Concentration': {
+      'g/L': 1.0,
+      'g/m³': 1000.0,
+      'kg/L': 0.001,
+      'kg/m³': 1.0,
+      'mg/L': 1000.0,
+      'mg/m³': 1000000.0,
+    },
+    'Volume': {
+      'L': 1.0,
+      'm³': 0.001,
+      'mL': 1000.0,
+      'cm³': 1000.0,
+    },
+    'Masse': {
+      'g': 1.0,
+      'kg': 0.001,
+      'mg': 1000.0,
+      'µg': 1000000.0,
+    },
+  };
+
+  String _selectedCategory = 'Concentration';
+
+  List<String> _getUnitsForCategory(String category) {
+    return _conversionFactors[category]?.keys.toList() ?? [];
+  }
 
   void _convert() {
     if (_formKey.currentState!.validate()) {
       final value = double.parse(_valueController.text);
+      final factors = _conversionFactors[_selectedCategory]!;
+      
+      // Convert to base unit first (g/L for concentration)
+      final baseValue = value / factors[_fromUnit]!;
+      // Convert from base unit to target unit
+      final result = baseValue * factors[_toUnit]!;
+      
       setState(() {
-        _result = _calculateConversion(value, _fromUnit, _toUnit);
+        _result = result;
       });
-    }
-  }
-
-  double _calculateConversion(double value, String from, String to) {
-    // Conversion to base unit (g/L)
-    double baseValue = value;
-    switch (from) {
-      case 'g/m³':
-        baseValue = value / 1000; // 1 g/L = 1000 g/m³
-        break;
-      case 'kg/L':
-        baseValue = value * 1000; // 1 kg/L = 1000 g/L
-        break;
-      case 'kg/m³':
-        baseValue = value; // 1 kg/m³ = 1 g/L
-        break;
-    }
-
-    // Conversion from base unit to target unit
-    switch (to) {
-      case 'g/m³':
-        return baseValue * 1000;
-      case 'kg/L':
-        return baseValue / 1000;
-      case 'kg/m³':
-        return baseValue;
-      default:
-        return baseValue; // g/L
     }
   }
 
@@ -62,74 +68,109 @@ class _UnitConverterPageState extends State<UnitConverterPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              'Convertisseur d\'Unités',
-              style: Theme.of(context).textTheme.headlineSmall,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 20),
-            TextFormField(
-              controller: _valueController,
-              decoration: const InputDecoration(
-                labelText: 'Valeur à convertir',
-                border: OutlineInputBorder(),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  children: [
+                    DropdownButtonFormField<String>(
+                      value: _selectedCategory,
+                      decoration: const InputDecoration(
+                        labelText: 'Catégorie',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: _conversionFactors.keys.map((String category) {
+                        return DropdownMenuItem<String>(
+                          value: category,
+                          child: Text(category),
+                        );
+                      }).toList(),
+                      onChanged: (String? newValue) {
+                        setState(() {
+                          _selectedCategory = newValue!;
+                          _fromUnit = _getUnitsForCategory(_selectedCategory).first;
+                          _toUnit = _getUnitsForCategory(_selectedCategory).first;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _valueController,
+                      decoration: const InputDecoration(
+                        labelText: 'Valeur à convertir',
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.number,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Veuillez entrer une valeur';
+                        }
+                        if (double.tryParse(value) == null) {
+                          return 'Veuillez entrer un nombre valide';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
+                ),
               ),
-              keyboardType: TextInputType.number,
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Veuillez entrer une valeur';
-                }
-                if (double.tryParse(value) == null) {
-                  return 'Veuillez entrer un nombre valide';
-                }
-                return null;
-              },
             ),
             const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _fromUnit,
-                    decoration: const InputDecoration(
-                      labelText: 'De',
-                      border: OutlineInputBorder(),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _fromUnit,
+                        decoration: const InputDecoration(
+                          labelText: 'De',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: _getUnitsForCategory(_selectedCategory).map((String unit) {
+                          return DropdownMenuItem<String>(
+                            value: unit,
+                            child: Text(unit),
+                          );
+                        }).toList(),
+                        onChanged: (String? newValue) {
+                          setState(() {
+                            _fromUnit = newValue!;
+                          });
+                        },
+                      ),
                     ),
-                    items: _units.map((String unit) {
-                      return DropdownMenuItem<String>(
-                        value: unit,
-                        child: Text(unit),
-                      );
-                    }).toList(),
-                    onChanged: (String? newValue) {
-                      setState(() {
-                        _fromUnit = newValue!;
-                      });
-                    },
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: _toUnit,
-                    decoration: const InputDecoration(
-                      labelText: 'Vers',
-                      border: OutlineInputBorder(),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Icon(
+                        Icons.arrow_forward,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                     ),
-                    items: _units.map((String unit) {
-                      return DropdownMenuItem<String>(
-                        value: unit,
-                        child: Text(unit),
-                      );
-                    }).toList(),
-                    onChanged: (String? newValue) {
-                      setState(() {
-                        _toUnit = newValue!;
-                      });
-                    },
-                  ),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _toUnit,
+                        decoration: const InputDecoration(
+                          labelText: 'Vers',
+                          border: OutlineInputBorder(),
+                        ),
+                        items: _getUnitsForCategory(_selectedCategory).map((String unit) {
+                          return DropdownMenuItem<String>(
+                            value: unit,
+                            child: Text(unit),
+                          );
+                        }).toList(),
+                        onChanged: (String? newValue) {
+                          setState(() {
+                            _toUnit = newValue!;
+                          });
+                        },
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
             const SizedBox(height: 20),
             ElevatedButton(
@@ -141,10 +182,29 @@ class _UnitConverterPageState extends State<UnitConverterPage> {
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
-                  child: Text(
-                    'Résultat: ${_result?.toStringAsFixed(4)} $_toUnit',
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    textAlign: TextAlign.center,
+                  child: Column(
+                    children: [
+                      const Text(
+                        'Résultat',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${_valueController.text} $_fromUnit = ',
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                      Text(
+                        '${_result?.toStringAsFixed(6)} $_toUnit',
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
