@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/compound_service.dart';
 
 class ReactionCalculatorPage extends StatefulWidget {
   const ReactionCalculatorPage({super.key});
@@ -15,205 +16,454 @@ class _ReactionCalculatorPageState extends State<ReactionCalculatorPage> {
   final _formulaBController = TextEditingController();
   double? _molesA;
   double? _molesB;
-  double? _productC;
-  double? _massA;
-  double? _massB;
+  double? _theoreticalMass;
+  String? _limitingReagent;
 
-  // Simplified periodic table data
-  final Map<String, double> _elements = {
-    'H': 1.008,
-    'C': 12.01,
-    'N': 14.01,
-    'O': 16.00,
-    'Na': 22.99,
-    'Mg': 24.31,
-    'Al': 26.98,
-    'P': 30.97,
-    'S': 32.07,
-    'Cl': 35.45,
-    'Cu': 63.55,
-    'Fe': 55.85,
+  // Base de données des composés chimiques courants
+  final Map<String, String> _commonCompounds = {
+    'Eau': 'H2O',
+    'Acide chlorhydrique': 'HCl',
+    'Soude caustique': 'NaOH',
+    'Acide sulfurique': 'H2SO4',
+    'Acide nitrique': 'HNO3',
+    'Acide acétique': 'CH3COOH',
+    'Glucose': 'C6H12O6',
+    'Méthane': 'CH4',
+    'Éthanol': 'C2H5OH',
+    'Ammoniac': 'NH3',
+    'Dioxyde de carbone': 'CO2',
+    'Sulfate de cuivre': 'CuSO4',
+    'Chlorure de sodium': 'NaCl',
+    'Carbonate de calcium': 'CaCO3',
+    'Hydroxyde de calcium': 'Ca(OH)2',
+    'Nitrate d\'argent': 'AgNO3',
+    'Sulfate de fer(II)': 'FeSO4',
+    'Permanganate de potassium': 'KMnO4',
+    'Dichromate de potassium': 'K2Cr2O7',
+    'Acide phosphorique': 'H3PO4',
   };
+
+  // Base de données complète des éléments chimiques
+  final Map<String, double> _elements = {
+    'H': 1.008, 'He': 4.003,
+    'Li': 6.941, 'Be': 9.012, 'B': 10.811, 'C': 12.011, 'N': 14.007, 'O': 15.999, 'F': 18.998, 'Ne': 20.180,
+    'Na': 22.990, 'Mg': 24.305, 'Al': 26.982, 'Si': 28.086, 'P': 30.974, 'S': 32.065, 'Cl': 35.453, 'Ar': 39.948,
+    'K': 39.098, 'Ca': 40.078, 'Sc': 44.956, 'Ti': 47.867, 'V': 50.942, 'Cr': 51.996, 'Mn': 54.938, 'Fe': 55.845,
+    'Co': 58.933, 'Ni': 58.693, 'Cu': 63.546, 'Zn': 65.380, 'Ga': 69.723, 'Ge': 72.640, 'As': 74.922, 'Se': 78.960,
+    'Br': 79.904, 'Kr': 83.798,
+    'Rb': 85.468, 'Sr': 87.620, 'Y': 88.906, 'Zr': 91.224, 'Nb': 92.906, 'Mo': 95.960, 'Tc': 98.000, 'Ru': 101.070,
+    'Rh': 102.906, 'Pd': 106.420, 'Ag': 107.868, 'Cd': 112.411, 'In': 114.818, 'Sn': 118.710, 'Sb': 121.760, 'Te': 127.600,
+    'I': 126.904, 'Xe': 131.293,
+    'Cs': 132.905, 'Ba': 137.327, 'La': 138.905, 'Ce': 140.116, 'Pr': 140.908, 'Nd': 144.242, 'Pm': 145.000, 'Sm': 150.360,
+    'Eu': 151.964, 'Gd': 157.250, 'Tb': 158.925, 'Dy': 162.500, 'Ho': 164.930, 'Er': 167.259, 'Tm': 168.934, 'Yb': 173.054,
+    'Lu': 174.967, 'Hf': 178.490, 'Ta': 180.948, 'W': 183.840, 'Re': 186.207, 'Os': 190.230, 'Ir': 192.217, 'Pt': 195.084,
+    'Au': 196.967, 'Hg': 200.590, 'Tl': 204.383, 'Pb': 207.200, 'Bi': 208.980, 'Po': 209.000, 'At': 210.000, 'Rn': 222.000,
+    'Fr': 223.000, 'Ra': 226.000, 'Ac': 227.000, 'Th': 232.038, 'Pa': 231.036, 'U': 238.029, 'Np': 237.000, 'Pu': 244.000,
+    // Ions et groupes fonctionnels communs
+    'OH': 17.007, 'NH4': 18.039, 'NO3': 62.004, 'SO4': 96.063, 'PO4': 94.971, 'CO3': 60.009,
+    'CH3': 15.035, 'COOH': 45.018, 'NH2': 16.023, 'CN': 26.018,
+  };
+
+  // Suggestions pour l'autocomplétion
+  List<String> _getSuggestions(String query) {
+    query = query.toLowerCase();
+    List<String> suggestions = [];
+
+    // Chercher dans les composés communs
+    suggestions.addAll(
+      _commonCompounds.entries
+        .where((entry) => entry.key.toLowerCase().contains(query) || 
+                         entry.value.toLowerCase().contains(query))
+        .map((e) => '${e.key} (${e.value})')
+        .toList()
+    );
+
+    // Si pas de suggestions dans les composés communs et que la requête ressemble à une formule
+    if (suggestions.isEmpty && RegExp(r'^[A-Za-z0-9()]+$').hasMatch(query)) {
+      // Chercher dans les éléments
+      suggestions.addAll(
+        _elements.keys
+          .where((element) => element.toLowerCase().startsWith(query))
+          .map((e) => e)
+      );
+    }
+
+    return suggestions;
+  }
 
   double _calculateMolarMass(String formula) {
     double totalMass = 0;
-    RegExp elementPattern = RegExp(r'([A-Z][a-z]?)(\d*)');
+    RegExp elementPattern = RegExp(r'([A-Z][a-z]?\d*|[A-Z][a-z]?\([A-Za-z0-9]+\)\d*)');
+    RegExp numberPattern = RegExp(r'\d+');
     
     var matches = elementPattern.allMatches(formula);
     
     for (var match in matches) {
-      String element = match.group(1)!;
-      String numberStr = match.group(2) ?? '1';
-      int number = numberStr.isEmpty ? 1 : int.parse(numberStr);
+      String group = match.group(0)!;
+      
+      // Gestion des groupes parenthésés
+      if (group.contains('(')) {
+        RegExp groupPattern = RegExp(r'([A-Z][a-z]?)\(([A-Za-z0-9]+)\)(\d*)');
+        var groupMatch = groupPattern.firstMatch(group);
+        if (groupMatch != null) {
+          String element = groupMatch.group(1)!;
+          String innerGroup = groupMatch.group(2)!;
+          String multiplierStr = groupMatch.group(3) ?? '1';
+          int multiplier = int.parse(multiplierStr.isEmpty ? '1' : multiplierStr);
+          
+          if (_elements.containsKey(element)) {
+            totalMass += _elements[element]! * multiplier;
+          }
+          if (_elements.containsKey(innerGroup)) {
+            totalMass += _elements[innerGroup]! * multiplier;
+          }
+        }
+        continue;
+      }
+      
+      // Gestion des éléments simples
+      String element = group.replaceAll(numberPattern, '');
+      String numberStr = numberPattern.stringMatch(group) ?? '1';
+      int number = int.parse(numberStr.isEmpty ? '1' : numberStr);
       
       if (_elements.containsKey(element)) {
         totalMass += _elements[element]! * number;
+      } else {
+        // Si l'élément n'est pas trouvé, vérifier s'il s'agit d'un groupe fonctionnel
+        bool found = false;
+        for (var entry in _elements.entries) {
+          if (element.contains(entry.key)) {
+            totalMass += entry.value * number;
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          throw Exception('Élément non trouvé: $element');
+        }
       }
     }
     
     return totalMass;
   }
 
-  void _calculateReaction() {
+  void _calculate() {
     if (_formKey.currentState!.validate()) {
-      setState(() {
+      try {
+        final massA = double.parse(_reactantAController.text);
+        final massB = double.parse(_reactantBController.text);
+        
         // Calculate molar masses
-        double molarMassA = _calculateMolarMass(_formulaAController.text);
-        double molarMassB = _calculateMolarMass(_formulaBController.text);
+        final molarMassA = _calculateMolarMass(_formulaAController.text);
+        final molarMassB = _calculateMolarMass(_formulaBController.text);
         
-        // Convert masses to moles
-        _massA = double.parse(_reactantAController.text);
-        _massB = double.parse(_reactantBController.text);
+        // Calculate moles
+        _molesA = massA / molarMassA;
+        _molesB = massB / molarMassB;
         
-        _molesA = _massA! / molarMassA;
-        _molesB = _massB! / molarMassB;
-        
-        // Calculate the limiting reagent
-        _productC = _molesA! < _molesB! ? _molesA : _molesB;
-      });
+        setState(() {
+          if (_molesA! < _molesB!) {
+            _limitingReagent = 'A';
+            _theoreticalMass = _molesA!;
+          } else {
+            _limitingReagent = 'B';
+            _theoreticalMass = _molesB!;
+          }
+        });
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur de calcul: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
+  }
+
+  Future<void> _validateAndSearchCompound(String formula, TextEditingController controller) async {
+    // Vérifier d'abord si la formule est déjà dans notre base de données
+    bool isKnown = _elements.keys.any((element) => formula.contains(element)) ||
+                   _commonCompounds.values.contains(formula);
+    
+    if (!isKnown) {
+      // Montrer un dialogue de confirmation
+      final bool? shouldSearch = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Composé inconnu'),
+          content: Text(
+            'Le composé "$formula" n\'est pas dans notre base de données. '
+            'Voulez-vous chercher sa formule en ligne ?'
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Non'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Oui'),
+            ),
+          ],
+        ),
+      );
+
+      if (shouldSearch == true) {
+        // Montrer un indicateur de chargement
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const Center(child: CircularProgressIndicator()),
+        );
+
+        // Rechercher le composé
+        final String? result = await CompoundService.searchCompound(formula);
+        
+        // Fermer l'indicateur de chargement
+        Navigator.pop(context);
+
+        if (result != null) {
+          setState(() {
+            controller.text = result;
+          });
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Désolé, impossible de trouver ce composé. '
+                  'Vérifiez la formule ou essayez un composé plus courant.'
+                ),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+        }
+      }
+    }
+  }
+
+  Widget _buildFormulaField(TextEditingController controller, String label) {
+    return Autocomplete<String>(
+      optionsBuilder: (TextEditingValue textEditingValue) {
+        if (textEditingValue.text.isEmpty) {
+          return const Iterable<String>.empty();
+        }
+        return _getSuggestions(textEditingValue.text);
+      },
+      onSelected: (String selection) {
+        // Si c'est un composé commun, extraire la formule entre parenthèses
+        if (selection.contains('(') && selection.contains(')')) {
+          controller.text = selection.substring(
+            selection.indexOf('(') + 1,
+            selection.indexOf(')')
+          );
+        } else {
+          controller.text = selection;
+        }
+      },
+      fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+        return TextFormField(
+          controller: controller,
+          focusNode: focusNode,
+          decoration: InputDecoration(
+            labelText: label,
+            hintText: 'Ex: H2O, NaCl, CH3COOH',
+            border: const OutlineInputBorder(),
+            suffixIcon: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.search),
+                  onPressed: () => _validateAndSearchCompound(controller.text, controller),
+                  tooltip: 'Rechercher en ligne',
+                ),
+                IconButton(
+                  icon: const Icon(Icons.help_outline),
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Aide - Formules chimiques'),
+                        content: SingleChildScrollView(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Composés courants :'),
+                              const SizedBox(height: 8),
+                              ...(_commonCompounds.entries.map((e) => 
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 4),
+                                  child: Text('${e.key} : ${e.value}'),
+                                )
+                              )).take(10),
+                              const Divider(),
+                              const Text(
+                                'Conseils :\n'
+                                '• Les formules sont sensibles à la casse (H2O, pas h2o)\n'
+                                '• Utilisez des parenthèses pour les groupes : Ca(OH)2\n'
+                                '• Les nombres vont après les éléments : Fe2O3\n'
+                                '• Si un composé n\'est pas trouvé, cliquez sur 🔍'
+                              ),
+                            ],
+                          ),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('OK'),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Veuillez entrer une formule chimique';
+            }
+            return null;
+          },
+          onFieldSubmitted: (_) => _validateAndSearchCompound(controller.text, controller),
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Calculateur de Réaction',
-              style: Theme.of(context).textTheme.headlineSmall,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _formulaAController,
-                    decoration: const InputDecoration(
-                      labelText: 'Formule Réactif A',
-                      hintText: 'Ex: CuSO4',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Entrez la formule';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextFormField(
-                    controller: _reactantAController,
-                    decoration: const InputDecoration(
-                      labelText: 'Masse A (g)',
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: TextInputType.number,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Entrez la masse';
-                      }
-                      if (double.tryParse(value) == null) {
-                        return 'Nombre invalide';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _formulaBController,
-                    decoration: const InputDecoration(
-                      labelText: 'Formule Réactif B',
-                      hintText: 'Ex: NaOH',
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Entrez la formule';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextFormField(
-                    controller: _reactantBController,
-                    decoration: const InputDecoration(
-                      labelText: 'Masse B (g)',
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: TextInputType.number,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Entrez la masse';
-                      }
-                      if (double.tryParse(value) == null) {
-                        return 'Nombre invalide';
-                      }
-                      return null;
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _calculateReaction,
-              child: const Text('Calculer'),
-            ),
-            const SizedBox(height: 20),
-            if (_productC != null) ...[
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Réactif A (${_formulaAController.text}):',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      Text('Masse: ${_massA?.toStringAsFixed(2)} g'),
-                      Text('Quantité de matière: ${_molesA?.toStringAsFixed(4)} mol'),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Réactif B (${_formulaBController.text}):',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      Text('Masse: ${_massB?.toStringAsFixed(2)} g'),
-                      Text('Quantité de matière: ${_molesB?.toStringAsFixed(4)} mol'),
-                      const Divider(),
-                      Text(
-                        'Réactif limitant: ${_molesA! <= _molesB! ? "A" : "B"}',
-                        style: const TextStyle(
+                      const Text(
+                        'Réactif A',
+                        style: TextStyle(
+                          fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: Colors.red,
                         ),
                       ),
-                      Text(
-                        'Quantité de produit théorique: ${_productC?.toStringAsFixed(4)} mol',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      const SizedBox(height: 16),
+                      _buildFormulaField(_formulaAController, 'Formule chimique'),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _reactantAController,
+                        decoration: const InputDecoration(
+                          labelText: 'Masse (g)',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Veuillez entrer une masse';
+                          }
+                          if (double.tryParse(value) == null) {
+                            return 'Veuillez entrer un nombre valide';
+                          }
+                          return null;
+                        },
                       ),
                     ],
                   ),
                 ),
               ),
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Réactif B',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _buildFormulaField(_formulaBController, 'Formule chimique'),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _reactantBController,
+                        decoration: const InputDecoration(
+                          labelText: 'Masse (g)',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Veuillez entrer une masse';
+                          }
+                          if (double.tryParse(value) == null) {
+                            return 'Veuillez entrer un nombre valide';
+                          }
+                          return null;
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: _calculate,
+                child: const Text('Calculer'),
+              ),
+              const SizedBox(height: 20),
+              if (_theoreticalMass != null)
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Résultats',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text('Quantité de matière A: ${_molesA?.toStringAsFixed(4)} mol'),
+                        Text('Quantité de matière B: ${_molesB?.toStringAsFixed(4)} mol'),
+                        const Divider(),
+                        Text(
+                          'Réactif limitant: $_limitingReagent',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                        Text(
+                          'Masse théorique: ${_theoreticalMass?.toStringAsFixed(4)} g',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
             ],
-          ],
+          ),
         ),
       ),
     );
