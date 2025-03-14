@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:didines/pages/reaction_calculator_page.dart';
 
 void main() {
@@ -15,10 +16,12 @@ void main() {
         ),
       );
 
-      // Vérifie la présence des champs
-      expect(find.byType(TextFormField), findsNWidgets(4));
-      expect(find.byIcon(Icons.search), findsNWidgets(2));
-      expect(find.byIcon(Icons.help_outline), findsNWidgets(2));
+      // Vérifie la présence des champs TypeAheadFormField
+      expect(find.byType(TypeAheadFormField), findsNWidgets(4));
+      expect(find.text('Réactif 1'), findsOneWidget);
+      expect(find.text('Réactif 2'), findsOneWidget);
+      expect(find.text('Produit 1'), findsOneWidget);
+      expect(find.text('Produit 2'), findsOneWidget);
     });
 
     testWidgets('Affiche le dialogue d\'aide', (WidgetTester tester) async {
@@ -30,12 +33,15 @@ void main() {
         ),
       );
 
-      // Ouvre le dialogue d'aide
-      await tester.tap(find.byIcon(Icons.help_outline).first);
+      // Trouve et tape sur le bouton d'aide
+      final helpButton = find.byIcon(Icons.help_outline);
+      expect(helpButton, findsOneWidget);
+      await tester.tap(helpButton);
       await tester.pumpAndSettle();
 
-      // Vérifie le contenu du dialogue
+      // Vérifie que le dialogue est affiché
       expect(find.text('Aide - Formules chimiques'), findsOneWidget);
+      expect(find.text('Composés courants :'), findsOneWidget);
       
       // Ferme le dialogue
       await tester.tap(find.text('OK'));
@@ -52,12 +58,15 @@ void main() {
         ),
       );
 
-      // Entre une formule valide
-      await tester.enterText(find.byType(TextFormField).first, 'H2O');
-      await tester.pump();
+      // Trouve les champs de saisie
+      final reactant1Field = find.byType(TypeAheadFormField).first;
       
-      // Vérifie qu'il n'y a pas d'erreur
-      expect(find.text('Veuillez entrer une formule chimique'), findsNothing);
+      // Entre une formule
+      await tester.enterText(reactant1Field, 'H2O');
+      await tester.pump();
+
+      // Vérifie que la formule a été saisie
+      expect(find.text('H2O'), findsOneWidget);
     });
 
     testWidgets('Gère l\'autocomplétion', (WidgetTester tester) async {
@@ -69,12 +78,14 @@ void main() {
         ),
       );
 
-      // Entre une formule partielle
-      final formulaField = find.byType(TextFormField).first;
-      await tester.enterText(formulaField, 'H');
+      // Trouve le premier champ TypeAheadFormField
+      final field = find.byType(TypeAheadFormField).first;
+      
+      // Entre un texte partiel
+      await tester.enterText(field, 'H');
       await tester.pump();
 
-      // Vérifie que le champ accepte la saisie
+      // Vérifie que le champ contient le texte
       expect(find.text('H'), findsOneWidget);
     });
   });

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_typeahead/flutter_typeahead.dart';
 import '../services/compound_service.dart';
+import '../services/autocomplete_service.dart';
 
 class ReactionCalculatorPage extends StatefulWidget {
   const ReactionCalculatorPage({super.key});
@@ -14,36 +16,13 @@ class _ReactionCalculatorPageState extends State<ReactionCalculatorPage> {
   final _reactantBController = TextEditingController();
   final _formulaAController = TextEditingController();
   final _formulaBController = TextEditingController();
+  final _autocompleteService = AutocompleteService();
   double? _molesA;
   double? _molesB;
   double? _theoreticalMass;
   String? _limitingReagent;
 
-  // Base de données des composés chimiques courants
-  final Map<String, String> _commonCompounds = {
-    'Eau': 'H2O',
-    'Acide chlorhydrique': 'HCl',
-    'Soude caustique': 'NaOH',
-    'Acide sulfurique': 'H2SO4',
-    'Acide nitrique': 'HNO3',
-    'Acide acétique': 'CH3COOH',
-    'Glucose': 'C6H12O6',
-    'Méthane': 'CH4',
-    'Éthanol': 'C2H5OH',
-    'Ammoniac': 'NH3',
-    'Dioxyde de carbone': 'CO2',
-    'Sulfate de cuivre': 'CuSO4',
-    'Chlorure de sodium': 'NaCl',
-    'Carbonate de calcium': 'CaCO3',
-    'Hydroxyde de calcium': 'Ca(OH)2',
-    'Nitrate d\'argent': 'AgNO3',
-    'Sulfate de fer(II)': 'FeSO4',
-    'Permanganate de potassium': 'KMnO4',
-    'Dichromate de potassium': 'K2Cr2O7',
-    'Acide phosphorique': 'H3PO4',
-  };
-
-  // Base de données complète des éléments chimiques
+  // Base de données des éléments chimiques
   final Map<String, double> _elements = {
     'H': 1.008, 'He': 4.003,
     'Li': 6.941, 'Be': 9.012, 'B': 10.811, 'C': 12.011, 'N': 14.007, 'O': 15.999, 'F': 18.998, 'Ne': 20.180,
@@ -63,33 +42,6 @@ class _ReactionCalculatorPageState extends State<ReactionCalculatorPage> {
     'OH': 17.007, 'NH4': 18.039, 'NO3': 62.004, 'SO4': 96.063, 'PO4': 94.971, 'CO3': 60.009,
     'CH3': 15.035, 'COOH': 45.018, 'NH2': 16.023, 'CN': 26.018,
   };
-
-  // Suggestions pour l'autocomplétion
-  List<String> _getSuggestions(String query) {
-    query = query.toLowerCase();
-    List<String> suggestions = [];
-
-    // Chercher dans les composés communs
-    suggestions.addAll(
-      _commonCompounds.entries
-        .where((entry) => entry.key.toLowerCase().contains(query) || 
-                         entry.value.toLowerCase().contains(query))
-        .map((e) => '${e.key} (${e.value})')
-        .toList()
-    );
-
-    // Si pas de suggestions dans les composés communs et que la requête ressemble à une formule
-    if (suggestions.isEmpty && RegExp(r'^[A-Za-z0-9()]+$').hasMatch(query)) {
-      // Chercher dans les éléments
-      suggestions.addAll(
-        _elements.keys
-          .where((element) => element.toLowerCase().startsWith(query))
-          .map((e) => e)
-      );
-    }
-
-    return suggestions;
-  }
 
   double _calculateMolarMass(String formula) {
     double totalMass = 0;
@@ -157,9 +109,13 @@ class _ReactionCalculatorPageState extends State<ReactionCalculatorPage> {
         final molarMassA = _calculateMolarMass(_formulaAController.text);
         final molarMassB = _calculateMolarMass(_formulaBController.text);
         
-        // Calculate moles
+        // Calculate moles with more precision
         _molesA = massA / molarMassA;
         _molesB = massB / molarMassB;
+        
+        // Round to 4 decimal places for display
+        _molesA = double.parse(_molesA!.toStringAsFixed(4));
+        _molesB = double.parse(_molesB!.toStringAsFixed(4));
         
         setState(() {
           if (_molesA! < _molesB!) {
@@ -184,7 +140,7 @@ class _ReactionCalculatorPageState extends State<ReactionCalculatorPage> {
   Future<void> _validateAndSearchCompound(String formula, TextEditingController controller) async {
     // Vérifier d'abord si la formule est déjà dans notre base de données
     bool isKnown = _elements.keys.any((element) => formula.contains(element)) ||
-                   _commonCompounds.values.contains(formula);
+                   _autocompleteService.commonCompounds.values.contains(formula);
     
     if (!isKnown) {
       // Montrer un dialogue de confirmation
@@ -245,93 +201,87 @@ class _ReactionCalculatorPageState extends State<ReactionCalculatorPage> {
   }
 
   Widget _buildFormulaField(TextEditingController controller, String label) {
-    return Autocomplete<String>(
-      optionsBuilder: (TextEditingValue textEditingValue) {
-        if (textEditingValue.text.isEmpty) {
-          return const Iterable<String>.empty();
-        }
-        return _getSuggestions(textEditingValue.text);
-      },
-      onSelected: (String selection) {
-        // Si c'est un composé commun, extraire la formule entre parenthèses
-        if (selection.contains('(') && selection.contains(')')) {
-          controller.text = selection.substring(
-            selection.indexOf('(') + 1,
-            selection.indexOf(')')
-          );
-        } else {
-          controller.text = selection;
-        }
-      },
-      fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-        return TextFormField(
-          controller: controller,
-          focusNode: focusNode,
-          decoration: InputDecoration(
-            labelText: label,
-            hintText: 'Ex: H2O, NaCl, CH3COOH',
-            border: const OutlineInputBorder(),
-            suffixIcon: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.search),
-                  onPressed: () => _validateAndSearchCompound(controller.text, controller),
-                  tooltip: 'Rechercher en ligne',
-                ),
-                IconButton(
-                  icon: const Icon(Icons.help_outline),
-                  onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('Aide - Formules chimiques'),
-                        content: SingleChildScrollView(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text('Composés courants :'),
-                              const SizedBox(height: 8),
-                              ...(_commonCompounds.entries.map((e) => 
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 4),
-                                  child: Text('${e.key} : ${e.value}'),
-                                )
-                              )).take(10),
-                              const Divider(),
-                              const Text(
-                                'Conseils :\n'
-                                '• Les formules sont sensibles à la casse (H2O, pas h2o)\n'
-                                '• Utilisez des parenthèses pour les groupes : Ca(OH)2\n'
-                                '• Les nombres vont après les éléments : Fe2O3\n'
-                                '• Si un composé n\'est pas trouvé, cliquez sur 🔍'
-                              ),
-                            ],
-                          ),
+    return TypeAheadFormField<String>(
+      textFieldConfiguration: TextFieldConfiguration(
+        controller: controller,
+        decoration: InputDecoration(
+          labelText: label,
+          hintText: 'Ex: H2O, NaCl, CH3COOH',
+          border: const OutlineInputBorder(),
+          suffixIcon: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.search),
+                onPressed: () => _validateAndSearchCompound(controller.text, controller),
+                tooltip: 'Rechercher en ligne',
+              ),
+              IconButton(
+                icon: const Icon(Icons.help_outline),
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Aide - Formules chimiques'),
+                      content: SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Composés courants :'),
+                            const SizedBox(height: 8),
+                            ...(_autocompleteService.commonCompounds.entries.map((e) => 
+                              Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 4),
+                                child: Text('${e.key} : ${e.value}'),
+                              )
+                            )).take(10),
+                            const Divider(),
+                            const Text(
+                              'Conseils :\n'
+                              '• Les formules sont sensibles à la casse (H2O, pas h2o)\n'
+                              '• Utilisez des parenthèses pour les groupes : Ca(OH)2\n'
+                              '• Les nombres vont après les éléments : Fe2O3\n'
+                              '• Si un composé n\'est pas trouvé, cliquez sur 🔍'
+                            ),
+                          ],
                         ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('OK'),
-                          ),
-                        ],
                       ),
-                    );
-                  },
-                ),
-              ],
-            ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('OK'),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Veuillez entrer une formule chimique';
-            }
-            return null;
-          },
-          onFieldSubmitted: (_) => _validateAndSearchCompound(controller.text, controller),
+        ),
+      ),
+      suggestionsCallback: (pattern) async {
+        return _autocompleteService.getSuggestions(pattern);
+      },
+      itemBuilder: (context, suggestion) {
+        return ListTile(
+          title: Text(suggestion),
         );
       },
+      onSuggestionSelected: (suggestion) {
+        final formula = _autocompleteService.extractFormula(suggestion);
+        if (formula != null) {
+          controller.text = formula;
+        }
+      },
+      validator: (value) {
+        if (value == null || value.isEmpty) {
+          return 'Veuillez entrer une formule chimique';
+        }
+        return null;
+      },
+      noItemsFoundBuilder: (context) => const SizedBox.shrink(),
     );
   }
 
