@@ -2,22 +2,30 @@ workflows:
   android-workflow:
     name: Android Build
     max_build_duration: 60
+    cache:
+      cache_paths:
+        - $FLUTTER_ROOT/.pub-cache
+        - $HOME/.gradle/caches
+        - $HOME/Library/Caches/CocoaPods
     environment:
       flutter: stable
       android_signing:
         - keystore_reference
     scripts:
+      - name: Set up local.properties
+        script: |
+          echo "flutter.sdk=$HOME/programs/flutter" > "$CM_BUILD_DIR/android/local.properties"
       - name: Get Flutter packages
         script: |
-          flutter pub get
+          flutter pub get --no-example
       - name: Run tests
         script: |
-          flutter test
-      - name: Build APK
+          flutter test --no-pub
+      - name: Build APK with specific target
         script: |
-          flutter build apk --release
+          flutter build apk --release --target-platform android-arm64 --split-per-abi
     artifacts:
-      - build/**/outputs/apk/**/*.apk
+      - build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
     publishing:
       email:
         recipients:
@@ -26,6 +34,10 @@ workflows:
   ios-workflow:
     name: iOS Build
     max_build_duration: 60
+    cache:
+      cache_paths:
+        - $FLUTTER_ROOT/.pub-cache
+        - $HOME/Library/Caches/CocoaPods
     environment:
       flutter: stable
       xcode: latest
@@ -33,13 +45,16 @@ workflows:
     scripts:
       - name: Get Flutter packages
         script: |
-          flutter pub get
+          flutter pub get --no-example
+      - name: Install pods
+        script: |
+          cd ios && pod install
       - name: Run tests
         script: |
-          flutter test
+          flutter test --no-pub
       - name: Build iOS
         script: |
-          flutter build ios --release --no-codesign
+          flutter build ios --release --no-codesign --no-tree-shake-icons
     artifacts:
       - build/ios/ipa/*.ipa
     publishing:
