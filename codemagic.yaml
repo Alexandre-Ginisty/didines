@@ -1,85 +1,9 @@
 workflows:
-  android-workflow:
-    name: Android Build
-    max_build_duration: 60
-    cache:
-      cache_paths:
-        - $FLUTTER_ROOT/.pub-cache
-        - $HOME/.gradle/caches
-        - $HOME/Library/Caches/CocoaPods
-    environment:
-      flutter: stable
-      android_signing:
-        - keystore_reference
-    scripts:
-      - name: Set up local.properties
-        script: |
-          echo "flutter.sdk=$HOME/programs/flutter" > "$CM_BUILD_DIR/android/local.properties"
-      - name: Get Flutter packages
-        script: |
-          flutter pub get --no-example
-      - name: Run tests
-        script: |
-          flutter test --no-pub
-      - name: Build APK with specific target
-        script: |
-          flutter build apk --release --target-platform android-arm64 --split-per-abi
-    artifacts:
-      - build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
-    publishing:
-      email:
-        recipients:
-          - user@example.com
-
-  ios-workflow:
+  ios-build:
     name: iOS Build
     max_build_duration: 60
     instance_type: mac_mini_m1
     environment:
-      vars:
-        APP_STORE_CONNECT_ISSUER_ID: # À remplir
-        APP_STORE_CONNECT_KEY_IDENTIFIER: # À remplir
-        APP_STORE_CONNECT_PRIVATE_KEY: # À remplir
-        BUNDLE_ID: "com.opium230.didines"
-        XCODE_WORKSPACE: "Runner.xcworkspace"
-        XCODE_SCHEME: "Runner"
-      xcode: latest
-      cocoapods: default
-      flutter: stable
-    cache:
-      cache_paths:
-        - $FLUTTER_ROOT/.pub-cache
-        - $HOME/Library/Caches/CocoaPods
-    scripts:
-      - name: Get Flutter packages
-        script: |
-          flutter pub get --no-example
-      - name: Install pods
-        script: |
-          cd ios && pod install
-      - name: Set up code signing settings
-        script: |
-          xcode-project use-profiles
-      - name: Flutter build ipa and automatic versioning
-        script: |
-          flutter build ipa --release \
-            --export-options-plist=/Users/builder/export_options.plist
-    artifacts:
-      - build/ios/ipa/*.ipa
-      - /tmp/xcodebuild_logs/*.log
-      - flutter_drive.log
-    publishing:
-      app_store_connect:
-        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
-        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
-        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
-        submit_to_testflight: true
-
-  ios-simulator:
-    name: iOS Simulator Build
-    max_build_duration: 60
-    instance_type: mac_mini_m1
-    environment:
       xcode: latest
       cocoapods: default
       flutter: stable
@@ -90,11 +14,11 @@ workflows:
       - name: Install pods
         script: |
           cd ios && pod install
-      - name: Build for simulator
+      - name: Build for iOS
         script: |
-          flutter build ios --debug --no-codesign --simulator
+          flutter build ios --debug --no-codesign
     artifacts:
-      - build/ios/iphonesimulator/*.app
+      - build/ios/iphoneos/Runner.app
     publishing:
       email:
         recipients:
