@@ -74,3 +74,28 @@ workflows:
         key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
         issuer_id: $APP_STORE_CONNECT_ISSUER_ID
         submit_to_testflight: true
+
+  ios-simulator:
+    name: iOS Simulator Build
+    max_build_duration: 60
+    instance_type: mac_mini_m1
+    environment:
+      xcode: latest
+      cocoapods: default
+      flutter: stable
+    scripts:
+      - name: Get Flutter packages
+        script: |
+          flutter pub get --no-example
+      - name: Install pods
+        script: |
+          cd ios && pod install
+      - name: Build for simulator
+        script: |
+          flutter build ios --debug --no-codesign --simulator
+    artifacts:
+      - build/ios/iphonesimulator/*.app
+    publishing:
+      email:
+        recipients:
+          - user@example.com
